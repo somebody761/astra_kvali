@@ -1,0 +1,122 @@
+Минимизация пример кода:
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy as sp
+from scipy.optimize import minimize
+x = np.array([...])
+y = np.array([...])
+def objective(params, x1, y1):
+    a, b = params
+    model = a*x1 + b
+    return np.sum(np.abs(model - y)) # Минимизируем MAE
+x_ls1 = np.linspace(np.min(x), np.max(x), 50)
+x0 = [2, 0.5] #оценочные значения коэфициентов
+res = minimize(objective, x0, args=(x, y), method='Nelder-Mead')
+
+print("Оптимальные параметры:", res.x)
+plt.plot(x_ls1, res.x[0] * x_ls1 + res.x[0], label='module')
+
+
+
+
+
+
+Оптимизация пример кода:
+import numpy as np
+import matplotlib.pyplot as plt
+import scipy as sp
+x_data = np.array([1, 2, 3, 4, 5, 6, 7])
+y_data = np.array([4.02, 6.89, 10, 20, 15.94, 19.08, 22.23])
+
+def approximation(x, alpha, beta):
+    return alpha*x + beta
+
+(alpha, beta), _ = sp.optimize.curve_fit(approximation, x_data, y_data, p0=[3, -6])
+
+xh = np.linspace(np.min(x_data), np.max(x_data), 50)
+fig, ax = plt.subplots(figsize=(8, 8), layout="tight")
+plt.plot(x_data, y_data, marker='.', ls=' ')
+ax.plot(xh, approximation(xh, alpha, beta), color="green", label="Аппроксимация")
+ax.legend()
+
+print(f"""
+Найденные параметры: 
+{alpha = :.3f},
+{beta = :.3f},
+""")
+
+
+
+
+
+
+
+
+Интерполяция пример кода:
+# задаем массивы
+arr1 = np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]) #x
+arr2 = np.array([2.55, 8.98, 15.9]) #y
+
+# Создаем сетки индексов
+old_indices = np.linspace(0, 1, len(arr2))
+new_indices = np.linspace(0, 1, len(arr1))
+
+# Растягиваем маленький массив до 13000 элементов с помощью линейной интерполяции
+arr2_stretched = np.interp(new_indices, old_indices, arr2)
+
+
+
+
+
+
+Разбиение нормального распределения на бинсы и счет плотности вероятности в них:
+import numpy as np
+
+# 1. Генерируем данные (например, координаты или яркости 10 000 звёзд)
+# mu - среднее значение, sigma - стандартное отклонение
+mu, sigma = 0, 1
+num_stars = 10000
+stars_data = np.random.normal(mu, sigma, num_stars)
+
+# 2. Задаем границы столбиков (бинов)
+# Создаем 20 столбиков в диапазоне от -4 до 4
+bins = np.linspace(-4, 4, 21) 
+
+# 3. Считаем количество звёзд в столбиках и плотность вероятности
+# counts - массив с абсолютным количеством звёзд в каждом столбике
+counts, _ = np.histogram(stars_data, bins=bins)
+
+# density_array - массив значений плотности вероятности для каждого столбика
+density_array, _ = np.histogram(stars_data, bins=bins, density=True)
+
+# --- Вывод результатов ---
+print("Границы столбиков:\n", np.round(bins, 2))
+print("\nКол-во звёзд в столбиках:\n", counts)
+print("\nПлотность вероятности для каждого столбика:\n", np.round(density_array, 3))
+
+
+
+
+
+
+
+
+Астропай перевод координат:
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+# для разделения строк есть string
+# Можно написать просто ra и dec и в unit уже написать еденицы измерения
+eq_coords = SkyCoord(ra, dec, frame='icrs', unit=("hour", "deg"))
+
+
+# Поддерживаются для углов таких как hour, rad, deg    есть ещё m для альазимутальной ск
+# Для переводя в другие системы можно писать coord.frame frame лучше просто гуглить
+gal_coords = eq_coords.galactic
+
+# Можно также через команду .transform_to('frame')
+example = eq_coords.transform_to('icrs')
+
+# Далее к получившемуся можно дописать .l например и получить конкретную координату,
+# Если не знаешь как называется конкретная координата выведи в целом переведенные coord и будет написанно
+l = gal_coords.l
+b = gal_coords.b
