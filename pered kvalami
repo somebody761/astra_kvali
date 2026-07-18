@@ -120,3 +120,175 @@ example = eq_coords.transform_to('icrs')
 # Если не знаешь как называется конкретная координата выведи в целом переведенные coord и будет написанно
 l = gal_coords.l
 b = gal_coords.b
+
+
+
+
+
+Для олимпиадного прак-тура по астрономии на Python (особенно когда закрыт доступ к сети и ИИ) критически важно иметь в голове шаблоны для обработки сырых данных, аппроксимации (фиттинга) сложных зависимостей и работы с астрономическими координатами.
+
+Встроенная справка help() в консоли поможет вспомнить синтаксис, но саму логику построения кода нужно помнить. Вот подборка продвинутых и неочевидных приемов с использованием SciPy, NumPy и Astropy, которые чаще всего спасают время на турах.
+
+1. Аппроксимация сложных профилей (SciPy)
+Обычно все помнят про polyfit, но реальные данные (например, спектральные линии или кривые блеска) требуют подгонки под конкретные физические модели (Гаусс, Лоренц, Фойгт или синусоиды).
+
+Кусок кода ниже решает сразу две сложные проблемы:
+
+Автоматическая оценка начального приближения (p0) — без этого curve_fit часто уходит в расходящийся минимум.
+
+Расчет погрешностей параметров — через ковариационную матрицу pcov.
+import numpy as np
+from scipy.optimize import curve_fit
+
+# Физическая модель: например, Гауссиана + линейный фон (часто для линий поглощения/эмиссии)
+def gaussian_with_background(x, a, x0, sigma, k, b):
+    return a * np.exp(-(x - x0)**2 / (2 * sigma**2)) + k * x + b
+
+# Предположим, x_data и y_data уже загружены
+# Умный подбор начальных значений (p0) на основе данных:
+x0_guess = x_data[np.argmax(np.abs(y_data - np.median(y_data)))] # пик
+a_guess = y_data.max() - y_data.min()
+sigma_guess = (x_data.max() - x_data.min()) / 10
+b_guess = np.median(y_data)
+k_guess = 0.0
+
+initial_guess = [a_guess, x0_guess, sigma_guess, k_guess, b_guess]
+
+# Фиттинг с возвратом ковариационной матрицы
+popt, pcov = curve_fit(gaussian_with_background, x_data, y_data, p0=initial_guess)
+
+# 1-sigma неопределенности параметров (диагональ матрицы ковариации)
+perr = np.sqrt(np.diag(pcov))
+
+print(f"Центр линии: {popt[1]:.4f} ± {perr[1]:.4f}")
+print(f"Ширина (sigma): {popt[2]:.4f} ± {perr[2]:.4f}")
+
+
+
+
+
+
+
+
+
+
+2. Быстрый поиск транзитов или периодов (SciPy / Astropy)
+Если дадут кривую блеска цефеиды или экзопланеты, искать период "руками" — потеря времени. Метод Ломба-Скаргла идеально подходит для неравномерных временных рядов.
+
+Вариант А: Быстрый аналог через scipy.signal (если нет Astropy)
+import numpy as np
+import scipy.signal as signal
+
+# t — время, y — звездная величина/поток (центрированный относительно 0)
+y_detrended = y_data - np.mean(y_data)
+
+# Задаем сетку частот для поиска (частота = 1 / период)
+frequencies = np.linspace(0.01, 10.0, 10000) 
+
+# Вычисление периодограммы
+power = signal.lombscargle(t_data, y_detrended, frequencies * 2 * np.pi)
+
+# Находим наилучшую частоту и период
+best_freq = frequencies[np.argmax(power)]
+best_period = 1 / best_freq
+print(f"Найденный период: {best_period:.5f}")
+
+
+
+
+Вариант Б: Через astropy.timeseries (дает точную значимость)
+from astropy.timeseries import LombScargle
+
+# В отличие от scipy, здесь не нужно домножать на 2*pi и центрировать
+ls = LombScargle(t_data, y_data, dy_data) # dy_data — ошибки измерений (если есть)
+frequency, power = ls.autopower(minimum_frequency=0.1, maximum_frequency=20.0)
+
+best_frequency = frequency[np.argmax(power)]
+period = 1.0 / best_frequency
+
+
+
+
+
+
+
+3. Фильтрация шума и сглаживание данных
+Если данные "шумные" и curve_fit сбоит, используйте фильтр Савицкого-Голея (savgol_filter). Он сглаживает данные локальными полиномами, сохраняя при этом экстремумы (в отличие от скользящего среднего, которое срезает пики линий).
+from scipy.signal import savgol_filter
+
+# window_length должно быть нечетным, polyorder — степень полинома
+# Подбирайте window_length под ширину ваших физических деталей
+y_smooth = savgol_filter(y_data, window_length=15, polyorder=3)
+
+
+
+
+
+4. Координатные сетки и угловые расстояния (Astropy)
+Формулу расстояния на сфере через сфаг (сферическую тригонометрию) легко перепутать в стрессе. Astropy делает это в одну строчку, учитывая проекции.
+
+Расчет углового расстояния между объектами:
+from astropy.coordinates import SkyCoord
+import astropy.units as u
+
+# Создаем объекты. Units могут быть deg, hourangle
+c1 = SkyCoord(ra='14h29m42.95s', dec='-62d40m46.1s', frame='icrs')
+c2 = SkyCoord(ra=217.4289 * u.deg, dec=-62.6795 * u.deg, frame='icrs')
+
+# Расстояние на небесной сфере
+sep = c1.separation(c2)
+print(f"В градусах: {sep.degree:.5f}")
+print(f"В арксекундах: {sep.arcsec:.2f}")
+
+
+
+
+
+
+
+
+
+
+Преобразование координат во вторую экваториальную (или галактическую):Если нужно перевести горизонтальные координаты (высоту $h$ и азимут $A$) в экваториальные, обязательно нужно передать параметры наблюдателя и время.
+from astropy.coordinates import EarthLocation, AltAz
+from astropy.time import Time
+
+# Точка наблюдения (координаты обсерватории/города)
+location = EarthLocation(lat=55.75 * u.deg, lon=37.62 * u.deg, height=150 * u.m)
+time = Time('2026-07-19 00:00:00') # Время ВСЕГДА в UTC
+
+# Задаем объект в горизонтальной системе
+altaz_frame = AltAz(obstime=time, location=location)
+obj_altaz = SkyCoord(alt=45 * u.deg, az=180 * u.deg, frame=altaz_frame)
+
+# Перевод в экваториальные (ICRS / J2000)
+obj_eq = obj_altaz.transform_to('icrs')
+print(f"RA: {obj_eq.ra.hour:.4f}h, Dec: {obj_eq.dec.deg:.4f}°")
+
+
+
+
+
+
+
+5. Быстрый трюк для численного интегрирования и дифференцирования Если нужно посчитать массу внутри радиуса по известной плотности $\int 4\pi r^2 \rho(r) dr$ или светимость, а аналитической формулы нет:
+# Интегрирование методом трапеций по готовым массивам x и y (неравномерный шаг ок!)
+from scipy.integrate import simpson # или np.trapz
+total_integral = simpson(y_data, x=x_data)
+
+# Численное взятие производной (например, скорость из координат)
+# Срезы [1:-1] и [2:] позволяют считать центральные разности (точность выше)
+dx = np.diff(x_data)
+dy = np.diff(y_data)
+derivative = dy / dx # размерность массива будет на 1 меньше первоначального
+
+
+
+
+
+Памятка для олимпиады:
+Если забыл синтаксис: Набери в консоли import scipy.optimize as opt -> help(opt.curve_fit). Встроенные докстринги в Python содержат примеры использования.
+
+Векторизация: Избегай циклов for для больших массивов данных. Вместо for i in range... y[i] = x[i]**2 пиши y = x**2. На олимпиадах бывают жесткие тайм-лимиты на выполнение скрипта.
+
+Маски (фильтрация): Чтобы убрать битые пиксели или отрицательные потоки: clean_y = y_data[y_data > 0], clean_x = x_data[y_data > 0].
