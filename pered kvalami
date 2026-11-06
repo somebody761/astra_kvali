@@ -292,3 +292,47 @@ derivative = dy / dx # размерность массива будет на 1 �
 Векторизация: Избегай циклов for для больших массивов данных. Вместо for i in range... y[i] = x[i]**2 пиши y = x**2. На олимпиадах бывают жесткие тайм-лимиты на выполнение скрипта.
 
 Маски (фильтрация): Чтобы убрать битые пиксели или отрицательные потоки: clean_y = y_data[y_data > 0], clean_x = x_data[y_data > 0].
+
+
+
+
+Еще астропай координаты:
+import astropy.units as u
+from astropy.coordinates import SkyCoord
+
+# 1. Задаем исходные данные объекта
+# (Правка, склонение, расстояние, собственные движения и лучевая скорость)
+ra = 211.23 * u.deg
+dec = 12.34 * u.deg
+distance = 150.0 * u.pc
+pm_ra_cosdec = -35.2 * u.mas / u.yr
+pm_dec = 12.4 * u.mas / u.yr
+radial_velocity = 25.7 * u.km / u.s
+
+# 2. Создаем объект SkyCoord в системе ICRS с учетом дифференциальной задержи (скоростей)
+c = SkyCoord(
+    ra=ra, 
+    dec=dec, 
+    distance=distance,
+    pm_ra_cosdec=pm_ra_cosdec, 
+    pm_dec=pm_dec,
+    radial_velocity=radial_velocity,
+    frame='icrs'
+)
+
+# 3. Трансформируем координаты и скорости в Галактическую систему (Galactic)
+galactic = c.galactic
+
+# 4. Извлекаем компоненты скорости UVW
+# В системе координат Galactic библиотеки Astropy:
+# U (U_LSR обычно требует поправки на движение Солнца, но чистые компоненты здесь):
+# U направлена к центру Галактики (компонента по долготе l=0) -> это -v_x или специальный вектор
+# Проще всего получить компоненты прямоугольной скорости в галактической системе:
+u_vel = galactic.velocity.d_x
+v_vel = galactic.velocity.d_y
+w_vel = galactic.velocity.d_z
+
+print(f"U: {u_vel:.2f}")
+print(f"V: {v_vel:.2f}")
+print(f"W: {w_vel:.2f}")
+
