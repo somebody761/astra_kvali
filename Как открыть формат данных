@@ -1,0 +1,10 @@
+FITS таблица:
+from astropy.io import fits
+import pandas as pd
+# Открываем файл и читаем данные и заголовок
+with fits.open("C:\\Users\\Пользователь\\Desktop\\stars.fits") as hdul:
+    hdul.info()
+    table_hdu = hdul[1]
+    data = table_hdu.data
+    df = pd.DataFrame(data)
+df
